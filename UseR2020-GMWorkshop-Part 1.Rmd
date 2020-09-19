@@ -1,0 +1,467 @@
+---
+title: "Gaussian Graphical Models in Metabolomics"
+author: Raji Balasubramanian (UMass-Amherst) and Denise Scholtens (Northwestern Feinberg
+  School of Medicine)
+date: "Monday, September 21, 2020"
+output: 
+  beamer_presentation:
+     includes:
+       in_header: header.tex
+     fig_width: 4.5
+     fig_height: 4.5
+     fig_caption: false
+     toc: true
+     keep_tex: true
+slide_level: 3
+---
+
+```{r setup, include=FALSE}
+#install.packages("igraph")
+#install.packages("huge")
+library(igraph)
+library(huge)
+```
+
+# Graphical models in medicine
+
+### Network Medicine
+  - **Fundamental principle**: disease module hypothesis that disease variants are connected.
+  - **Evidence in literature**: 10-fold increase in products of genes associated with a disorder when compared to expectation under random chance. 
+  - **References**: Su and Clish, Metabolomics and Network Medicine, 2017; Goh, K. I., Cusick, M. E. et. al., The human disease network, 2007.
+
+### Metabolites as networks 
+Metabolites are naturally represented as networks:
+
+ - **Nodes**: represent individual metabolites.
+ - **Edges (undirected)**: denote pairwise metabolite relationships.
+
+\newpage
+### Example network 
+\begin{figure}
+\begin{center}
+\centerline{\includegraphics[width=7cm]{figures/MetaboliteNetworks-example.png}}
+\end{center}
+\caption{Maternal BMI and newborn SSF associated metabolite networks from Sandler, V.,Reisetter, A. C. et. al., Diabetologia, 2017.}
+\end{figure}
+\newpage
+
+### Correlation networks 
+\begin{itemize} 
+\item Correlation networks are established methods for constructing metabolite networks. 
+\item Edges in correlation networks depict pairwise correlations between metabolite pairs. 
+\item Networks are often created by thresholding on a correlation cut-off. 
+\vspace{2ex} 
+\item {\bf Recent example from literature:} A network analysis of biomarkers for Type 2 Diabetes in the Nurses Health Study. \footnote{Huang, T., Glass, K. et al., Diabetes, 2018.}
+\end{itemize} 
+
+\newpage
+
+### Correlation networks 
+\begin{itemize} 
+\item {\bf Drawback:} Correlations between metabolite pairs can be driven by direct and indirect relationships. 
+\item Drivers of high correlation include shared or common enzymatic activities. \footnote{Su and Clish, Metabolomics and Network Medicine, 2017}. 
+
+\item Large number of non-zero pairwise correlations are usually observed. 
+\item Absence of an edge results from satisfying a {\bf strong} criterion of marginal independence between metabolite pairs. \footnote{ Strimmer, K., Notes on Gaussian Graphical Models. http://www.strimmerlab.org/notes/ggm.html}
+\end{itemize} 
+
+
+### Gaussian graphical models (GGM)  
+\begin{itemize} 
+\item {\bf Model:} Metabolites are multivariate Gaussian with mean $\boldmath{\mu}$ and covariance matrix $\boldmath{\Sigma}$. 
+\vspace{1ex}
+\item The precision (concentration) matrix $\boldmath{\Omega} = \boldmath{\Sigma}^{-1}$.  
+\vspace{1ex}
+\item If $\Omega_{jk}=0$, then the $i$th metabolite is independent of the $j$th metabolite, given all other variables. 
+\end{itemize} 
+
+
+### GGM estimation
+\begin{itemize}
+\item {\bf Meinshausen and Buhlmann (2006)}: estimates  $\Omega_{jk}=0$ by fitting a lasso to each metabolite, using all others as predictors. 
+\item $\hat{\Omega}_{jk}\ne 0$: if the estimated coefficients of metabolite $i$ on $j$ AND vice-versa are non-zero.
+\end{itemize}
+\vspace{2ex}
+\begin{itemize}
+\item {\bf Friedman et al. (2007)}: Glasso and variants for exact maximization of the penalized log-likelihood. 
+\end{itemize}
+
+### Model selection
+\begin{itemize}
+\item Gaussian graphical model estimation involves a process to estimate the {\bf optimal regularization parameter ($\lambda$)}. 
+\item Large values of $\lambda$ correspond to increasing sparsity of the resulting graph. 
+\vspace{4ex}
+\item \underline{Stability approach for regularization selection (StARS)}: uses a subsampling approach to estimate the optimal $\lambda$. 
+\item \underline{Rotation information criterion (RIC)}: uses a permutation approach to estimate $\lambda$. 
+\end{itemize}
+
+### Correlation network versus GGM 
+
+\begin{itemize}
+\item {\bf Correlation network:} An edge between metabolite pairs can result from both direct AND indirect relationships. 
+\vspace{4ex}
+\item {\bf GGM:} An edge exists ONLY if the metabolite pair is dependent after accounting for all other indirect relationships. 
+\end{itemize}
+
+# Data
+
+### HAPO Metabolomics 
+\begin{itemize} 
+\item {\bf Hyperglycemia and Adverse Pregnancy Outcome (HAPO) Study} conducted during 2000 - 2006 at 15 international field centers. 
+
+\item Blood samples were obtained during a 75-g oral glucose tolerance test (OGTT) between 24 and 32 weeks gestation. 
+
+\item Metabolites were measured in maternal fasting and 1-h serum samples from {\bf 400} mothers in each ancestry group (Afro-Caribbean, Mexican American, Northern European, Thai). 
+
+\item Mothers were sampled to span the range of maternal glucose and BMI.
+\end{itemize} 
+
+
+### HAPO Metabolomics 
+Data Format:
+\begin{itemize}
+   \item {\bf Column 1}: ID
+   \item {\bf Column 2}: Ancestry Group
+   \item {\bf Column 3}: Fasting glucose 
+   \item {\bf Columns 4-54}: 51 metabolites 
+\end{itemize}
+
+### HAPO Metabolomics 
+Loading data .. 
+\footnotesize   
+```{r , message = FALSE, eval=TRUE}
+setwd("/cloud/project/Workshop")
+mydat <- read.csv(file = "Data/hapo_metabolomics_2020.csv")
+print(mydat[1:3,1:10])
+```
+\normalsize   
+
+### HAPO Metabolomics 
+Three groups of metabolites: 
+\begin{itemize}
+\item Prefix {\bf mt1}: Amino Acids (AA)
+\item Prefix {\bf mt2}: Acyl carnitines (AC)
+\item Prefix {\bf mt3}: Other 
+\end{itemize}
+
+### HAPO Metabolomics 
+Let's take a look at the numbers by **ancestry group**:
+\footnotesize   
+```{r , message = FALSE, eval=TRUE}
+ag <- mydat[,2]
+table(ag)
+```
+\normalsize   
+
+### HAPO Metabolomics 
+
+Let's take a look at the distribution of **fasting glucose**:
+\footnotesize   
+```{r , message = FALSE, eval=TRUE}
+fg <- mydat[,3]
+summary(fg)
+```
+\normalsize   
+
+### HAPO Metabolomics 
+
+Let's take a look at the distribution of **fasting glucose**:
+\footnotesize   
+```{r , message = FALSE, eval=TRUE, echo=FALSE, fig.align='center', fig.width=3, fig.height=3}
+hist(fg, breaks=40, xlab="Fasting glucose")
+```
+\normalsize   
+
+# Introduction to network analysis in R
+
+### Preliminaries
+\begin{itemize}
+\item {\bf igraph R} package: provides a way of representing graphs and various tools for working with graphs. 
+\end{itemize} 
+
+
+### Preliminaries 
+\begin{itemize}
+\item Let's work with a small (p=6) set of metabolites sampled from the HAPO dataset. 
+\item As an example, we start with a simple correlation network of 6 metabolites
+\end{itemize}
+
+\footnotesize   
+```{r, message = FALSE, eval=TRUE}
+mx <- mydat[,-c(1:3)]
+mx.1 <- mx[ag == "ag1", c(1,2,16,17,34,35)]
+cor.1 <- round(cor(mx.1, use="pairwise.complete.obs"), digits=2)
+
+### Create an adjacency matrix using a threshold of 0.1
+adj.1 <- matrix(0, nrow(cor.1), nrow(cor.1))
+adj.1[abs(cor.1) > 0.1] <- 1
+colnames(adj.1) <- rownames(adj.1) <- colnames(cor.1)
+
+```
+\normalsize   
+
+### Defining network objects in R 
+Let $p$ denote the number of metabolites in our network. 
+\begin{itemize}
+\item {\bf Adjacency matrix}: $p \times p$ matrix, where $i,j$ element is 1 if there is an edge between metabolite $i$ and metabolite $j$, and 0 otherwise. 
+\end{itemize}
+\footnotesize   
+```{r, message = FALSE, eval=TRUE}
+### Adjacency matrix 
+print(adj.1)
+```
+\normalsize   
+
+### igraph R package 
+We can convert an adjacency matrix to an igraph object. 
+
+\tiny 
+```{r, message = FALSE, eval=TRUE}
+
+library(igraph)
+igraph.obj <- graph.adjacency(adj.1,mode="undirected",weighted=NULL,diag=FALSE)
+
+## Extracting nodes and edges from igraph object 
+V(igraph.obj)
+E(igraph.obj)
+```
+\normalsize   
+
+### Visualizing our network
+Let's assign metabolite class to each of our nodes and an associated color. 
+
+\tiny   
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+### Assigning attributes to the list of nodes 
+
+V(igraph.obj)$MxClass <- c(rep("AA",2), rep("AC", 2), rep("Oth",2))
+V(igraph.obj)$color <- c(rep("red", 2), rep("light blue",2), rep("green",2))
+V(igraph.obj)$size <- 50
+V(igraph.obj)$label.cex <- 0.75
+```
+\normalsize   
+
+### Visualizing our network
+Visualize the network.. 
+
+\tiny   
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80), fig.align='center'}
+### Visualizing network 
+plot.igraph(igraph.obj,vertex.label=colnames(adj.1),layout=layout.fruchterman.reingold)
+
+```
+\normalsize   
+
+
+### Changing node attributes 
+Let's change node size in proportion to significance of association with fasting glucose.. 
+
+\footnotesize   
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+### Changing the node size to match the level 
+
+### of signficance with outcome (fasting glucose)
+
+myfun <- function(metabolite, outcome){
+	mymod <- lm(outcome ~ metabolite)
+	minuslogp <- -log(summary(mymod)$coef[2,4])
+	return(minuslogp)
+}
+
+fg1 <- fg[ag == "ag1"]
+vals <- apply(mx.1, 2, myfun, fg1)
+
+### scaling the node size  
+### changing the font fize 
+### of the vertex label 
+
+V(igraph.obj)$size <- vals*3+20
+V(igraph.obj)$label.cex <- 0.6
+
+```
+\normalsize   
+
+### Visualizing our network
+Visualize the network after changing node attributes.. 
+
+\tiny
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80), fig.align='center'}
+### Visualizing network 
+plot.igraph(igraph.obj,vertex.label=colnames(adj.1),layout=layout.fruchterman.reingold)
+
+
+```
+\normalsize   
+
+### Grouping nodes 
+We can also visually depict metabolite classes (Amino acids, Acyl carnitines, Other) in our network .. 
+\tiny
+```{r, message = TRUE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+### Visualizing network with node groups 
+mylist <- list(c("mt1_1","mt1_2"), c("mt2_1","mt2_2"), c("mt3_1","mt3_2"))
+```
+\normalsize   
+
+### Grouping nodes 
+\tiny
+```{r, message = TRUE, eval=TRUE, fig.align='center'}
+plot.igraph(igraph.obj,vertex.label=colnames(adj.1),
+            
+            layout=layout.fruchterman.reingold, mark.groups=mylist)
+```
+\normalsize   
+
+
+### Networks in R 
+
+There are a myriad of options available for visualizing networks. 
+For more, see help associated with plot.igraph() in the igraph package. 
+
+\tiny   
+```{r, message = FALSE, eval=FALSE,tidy=TRUE, tidy.opts=list(width.cutoff=80), fig.align='center'}
+
+### Other layouts (Kamada-Kawai)
+
+### For other options -- Check ?plot.igraph
+
+l <- layout_with_kk(igraph.obj)
+plot.igraph(igraph.obj,vertex.label=colnames(adj.1),layout=l, mark.groups=mylist)
+```
+\normalsize   
+
+# Gaussian Graphical Models (GGM) in R 
+
+### GGM in R
+We illustrate estimation of the Gaussian graphical model using the R package huge. 
+
+To keep in mind: 
+\begin{itemize}
+\item Missing values of metabolite levels need to be imputed prior to invoking the functions in {\bf huge}. 
+
+\item Each metabolite should be standardized to render them of unit variance. 
+
+\end{itemize}
+
+### Preliminaries 
+We prepare metabolite data in ancestry group ag1 for graphical model estimation. 
+
+\footnotesize   
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+### Prepping data for GGM 
+### Impute missing values
+### Standardize 
+
+standardizeMetabolite = function(x)
+{
+  x[x == Inf] <- NA
+  x[is.na(x)] <- min(x, na.rm=T)/2	
+  return((x-mean(x, na.rm=T))/sd(x, na.rm=T))
+}
+
+mx.1 <- mx[ag == "ag1",]
+mx1.s <- apply(mx.1, 2, standardizeMetabolite)
+
+summary(apply(mx1.s,2,sd))
+
+```
+\normalsize   
+
+### GGM estimation 
+
+The key functions involved are: 
+\begin{itemize}
+\item {\bf huge:} estimates GGM over a range of penalty parameters (can be left unspecified). 
+\item {\bf huge.select:} implements regularization parameter selection. 
+{\bf Reference:} T. Zhao and H. Liu (2012). The huge Package for High-dimensional Undirected Graph Estimation in R. Journal of Machine Learning Research. 
+\end{itemize}
+
+### GGM estimation 
+Regularization parameter selection options include: 
+\begin{itemize}
+\item StARS: tends to overselects edges. 
+\item RIC: more computationally efficient, tends to underselect edges. 
+\item {\bf Reference}: T. Zhao and H. Liu (2012). The huge Package for High-dimensional Undirected Graph Estimation in R. Journal of Machine Learning Research.
+\end{itemize}
+
+
+
+### GGM estimation 
+Let's estimate the GGM network for our data.. 
+
+\footnotesize   
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+library(huge)
+### creates the GGM model object
+mbModel <- huge(mx1.s, method="mb")
+### Optimal parameter selection using ric
+ mbOptRIC = huge.select(mbModel, criterion="ric")
+### extract the graph corresponding to optimal param
+mbOptRICGraph = mbOptRIC$refit
+
+```
+\normalsize   
+
+### GGM 
+
+Visualize our estimated GGM .. 
+
+Let's estimate the GGM network for our data.. 
+
+\tiny  
+```{r, message = FALSE, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80)}
+
+myg <- graph_from_adjacency_matrix(mbOptRICGraph, mode="undirected")
+### Assigning attributes to the list of nodes 
+
+V(myg)$MxClass <- c(rep("AA",15), rep("AC", 18), rep("Oth",18))
+V(myg)$color <- c(rep("red", 15), rep("light blue",18), rep("green",18))
+V(myg)$size <- 10
+V(myg)$label.cex <- 0.5
+
+```
+\normalsize   
+
+### GGM 
+
+\tiny
+```{r, eval=TRUE,tidy=TRUE, tidy.opts=list(width.cutoff=80), fig.align='center', echo=TRUE}
+### Visualizing network 
+plot.igraph(myg,vertex.label=colnames(mx.1),layout=layout.fruchterman.reingold)
+
+```
+\normalsize   
+
+### Other options 
+\begin{itemize}
+\item {\bf Method:} can be changed to glasso; huge(.., method="glasso"). 
+\vspace{1ex}
+\item {\bf Selecting $\lambda$:} in huge.select(.., criterion="stars").
+\vspace{1ex}
+\item {\bf Relaxing Gaussian assumption:} using nonparanormal (npn) transformation; huge.npn() will return a transformed data matrix.
+\end{itemize}
+### Next .. 
+\begin{center}
+{\bf Telling stories with GGMs}
+\end{center}
+
+\begin{itemize}
+\item Detecting communities within networks 
+\item Differential networks 
+\item Case studies 
+\end{itemize}
+
+### References 
+\footnotesize 
+\begin{itemize}
+\item Su, J. and Clish, C. (2018). Metabolomics and Network Medicine, Network Medicine: Complex Systems in Human Disease and Therapeutics, Harvard University Press. 
+\item Go, KI, Cusick, ME, Valle, D, Childs B, Vidal M, Barabási AL (2007).The human disease network, PNAS, 104(21):8685-90. 
+\item Sandler, V., Reisetter, A. C., Bain, J.R., ..., Scholtens, D.M., Lowe, W.L.Jr (2018) Associations of maternal BMI and insulin resistance with the maternal metabolome and newborn outcomes, Diabetologia, 60(3):518-530. 
+\item Meinshausen, N. and Buhlmann, P. (2006). High-dimensional graphs and variable selection with the Lasso, Annals of Statistics, Vol. 34, No. 3, 1436-1462.
+\item Friedman, J., Hastie, T. and Tibshirani, R. (2008). Sparse inverse covariance estimation with the graphical lasso, Biostatistics, 9(3):432-441.
+\item Roeder, K., Lafferty, J., Wasserman, L., Zhao, T., Liu, H. (2012) The huge package for high-dimensional undirected graph estimation in R. Journal of Machine Learning Research, (13):1059–1062.
+\end{itemize}
